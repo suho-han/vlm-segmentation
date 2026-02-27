@@ -21,12 +21,14 @@ uv.lock
 # Data (large, not versioned)
 data/
 
-# Run artifacts: keep metrics/config/history, exclude large binaries
+# Run artifacts (exclude entirely for public repos)
+runs/
+
+# Checkpoints and visualizations
 *.pt
 *.pth
 *.ckpt
 pred_vis/
-runs/_debug/
 
 # Jupyter
 .ipynb_checkpoints/
