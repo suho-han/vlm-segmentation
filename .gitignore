@@ -9,7 +9,7 @@ __pycache__/
 dist/
 build/
 .eggs/
-
+data/
 # Virtual environments
 .venv/
 venv/
