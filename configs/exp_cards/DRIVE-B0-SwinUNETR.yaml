@@ -1,0 +1,16 @@
+# Baseline B0: DRIVE × SwinUNETR
+# exp_id: DRIVE-B0-SwinUNETR
+dataset:    "DRIVE"
+model:      "swinunetr"
+image_size: 512
+batch_size: 2
+epochs:     100
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+swinunetr:
+  img_size:       512
+  feature_size:   48
+  use_checkpoint: false

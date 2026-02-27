@@ -1,0 +1,16 @@
+# Baseline B0: OCTA500-6M × SwinUNETR
+# exp_id: OCTA6M-B0-SwinUNETR
+dataset:    "OCTA500-6M"
+model:      "swinunetr"
+image_size: 384  # must be divisible by 32 for SwinUNETR
+batch_size: 4
+epochs:     100
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+swinunetr:
+  img_size:       384  # must be divisible by 32
+  feature_size:   48
+  use_checkpoint: false

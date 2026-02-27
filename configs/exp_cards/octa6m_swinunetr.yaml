@@ -1,0 +1,8 @@
+# Experiment card: OCTA500-6M × SwinUNETR baseline
+dataset: "OCTA500-6M"
+model: "swinunetr"
+exp_id: "OCTA6M-B0-SwinUNETR"
+image_size: 400
+batch_size: 4
+epochs: 100
+lr: 1.0e-4

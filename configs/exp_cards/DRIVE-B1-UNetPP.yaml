@@ -1,0 +1,16 @@
+# Baseline B1: DRIVE × UNet++
+# exp_id: DRIVE-B1-UNetPP
+dataset:    "DRIVE"
+model:      "unetpp"
+image_size: 512
+batch_size: 2
+epochs:     100
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+unetpp:
+  base_channels:    64
+  depth:            4
+  deep_supervision: false

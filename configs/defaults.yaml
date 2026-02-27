@@ -1,0 +1,61 @@
+# ============================================================
+#  vlm-segmentation — default configuration
+# ============================================================
+
+# ---------- paths -------------------------------------------
+dataset: "OCTA500-6M"           # OCTA500-6M | OCTA500-3M | DRIVE | dummy
+data_root: "./data"             # override via --data_root or DATA_ROOT env var
+outdir: "runs"
+exp_id: null                    # null → auto-generated (YYYYMMDD_HHMMSS_<hash>)
+
+# ---------- data --------------------------------------------
+image_size: 400                 # OCTA500-6M native; DRIVE auto-sets to 512
+image_ext: null                 # null → auto-detect per split dir
+label_ext: null                 # null → auto-detect (OCTA500:.bmp, DRIVE masks:.gif)
+num_workers: 4
+pin_memory: true
+
+# ---------- model -------------------------------------------
+model: "swinunetr"              # swinunetr | unetpp
+in_channels: 1
+out_channels: 1
+
+# SwinUNETR specific
+swinunetr:
+  img_size: 400
+  feature_size: 48
+  drop_rate: 0.0
+  attn_drop_rate: 0.0
+  use_checkpoint: false
+
+# UNet++ specific
+unetpp:
+  base_channels: 64
+  depth: 4
+  deep_supervision: false
+
+# ---------- training ----------------------------------------
+epochs: 100
+batch_size: 4
+lr: 1.0e-4
+weight_decay: 1.0e-5
+scheduler: "cosine"             # cosine | step | none
+warmup_epochs: 5
+grad_clip: 1.0
+seed: 42
+amp: true                       # mixed precision
+
+# ---------- loss --------------------------------------------
+loss: "bce_dice"                # bce | dice | bce_dice
+dice_smooth: 1.0
+bce_weight: 1.0
+dice_weight: 1.0
+
+# ---------- saving ------------------------------------------
+save_top_k: 1                   # keep best k checkpoints
+save_every: 10                  # also save every N epochs
+val_every: 1
+pred_vis_n: 20                  # number of prediction images to save
+
+# ---------- eval --------------------------------------------
+threshold: 0.5                  # binarisation threshold for predictions

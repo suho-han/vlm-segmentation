@@ -1,0 +1,10 @@
+# Experiment card: DRIVE × SwinUNETR baseline
+dataset: "DRIVE"
+model: "swinunetr"
+exp_id: "DRIVE-B0-SwinUNETR"
+image_size: 512
+image_ext: ".tif"
+label_ext: ".tif"
+batch_size: 2
+epochs: 100
+lr: 1.0e-4
