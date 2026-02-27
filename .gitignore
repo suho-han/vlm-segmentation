@@ -55,7 +55,6 @@ Thumbs.db
 # AI agent instruction files
 CLAUDE.md
 GEMINI.md
-PROJECT_CONTEXT.md
 .github/copilot-instructions.md
 
 # Logs
