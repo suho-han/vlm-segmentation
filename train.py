@@ -80,7 +80,7 @@ def parse_args():
     p.add_argument("--dummy_data", type=int, default=0,
                    help="1 → use dummy random data (no real dataset required)")
     # Common overrides
-    p.add_argument("--epochs",     type=int,   default=None)
+    p.add_argument("--epochs",     type=int,   default=1000)
     p.add_argument("--batch_size", type=int,   default=None)
     p.add_argument("--lr",         type=float, default=None)
     p.add_argument("--seed",       type=int,   default=None)
@@ -95,6 +95,9 @@ def parse_args():
                    help="VLM injection mode (overrides config vlm.mode)")
     p.add_argument("--vlm_alpha_init", type=float, default=None,
                    help="Initial alpha for spatial injection (default 0.1)")
+    # Early stopping
+    p.add_argument("--patience", type=int, default=None,
+                   help="Early stopping patience (default from config or 50)")
     return p.parse_args()
 
 
@@ -113,6 +116,7 @@ def merge_cfg(args) -> dict:
         "lr": args.lr,
         "seed": args.seed,
         "image_size": args.image_size,
+        "patience": args.patience,
     }
     if args.no_amp:
         overrides["amp"] = False
@@ -252,6 +256,9 @@ def main():
         scheduler = None
 
     best_dice = -1.0
+    best_val_loss = float("inf")
+    patience = cfg.get("patience", 50)
+    patience_counter = 0
     history = []
     val_every = cfg.get("val_every", 1)
     save_every = cfg.get("save_every", 10)
@@ -272,17 +279,31 @@ def main():
                 text_embed=text_embed, vlm_prior=vlm_prior,
             )
             row.update(val_metrics)
+            cur_val_loss = val_metrics["val_loss"]
+            
             logger.info(
                 f"Epoch {epoch:03d}/{epochs}  "
                 f"train_loss={train_loss:.4f}  "
-                f"val_loss={val_metrics['val_loss']:.4f}  "
+                f"val_loss={cur_val_loss:.4f}  "
                 f"val_dice={val_metrics['val_dice']:.4f}  "
                 f"val_iou={val_metrics['val_iou']:.4f}"
             )
+            
+            # Save best dice
             if val_metrics["val_dice"] > best_dice:
                 best_dice = val_metrics["val_dice"]
                 torch.save(model.state_dict(), run_dir / "ckpt" / "best.pt")
                 logger.info(f"  → new best dice={best_dice:.4f}, saved best.pt")
+            
+            # Early stopping check based on val_loss
+            if cur_val_loss < best_val_loss:
+                best_val_loss = cur_val_loss
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    logger.info(f"Early stopping triggered at epoch {epoch} (patience {patience})")
+                    break
         else:
             logger.info(f"Epoch {epoch:03d}/{epochs}  train_loss={train_loss:.4f}")
 

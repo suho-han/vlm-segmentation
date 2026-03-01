@@ -4,15 +4,13 @@
 # Testing
 env -u VIRTUAL_ENV uv run pytest -q
 
-# Baseline Execution (UNETR, TransUNet, nnU-Net)
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-A0-UNETR.yaml --exp_id OCTA6M-A0-UNETR --outdir runs
-CUDA_VISIBLE_DEVICES=1 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-A0-TransUNet.yaml --exp_id OCTA6M-A0-TransUNet --outdir runs
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-B2-nnUNet.yaml --exp_id OCTA6M-B2-nnUNet --outdir runs
+# Full Reproduction (1000 epochs, early stopping, all models)
+# Runs DRIVE on GPU 0 and OCTA on GPU 1 in parallel
+bash scripts/run_reproduce_all.sh
 
-# V1 Execution (Selected ViT Backbones)
-CUDA_VISIBLE_DEVICES=1 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-V1-UNETR.yaml --exp_id OCTA6M-V1-UNETR --outdir runs
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-V1-TransUNet.yaml --exp_id OCTA6M-V1-TransUNet --outdir runs
-
-# SwinUNETR-V1 (Reference)
-CUDA_VISIBLE_DEVICES=1 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml --exp_id OCTA6M-V1-SwinUNETR-VLM --outdir runs
+# Individual Training Example (with new defaults)
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
+    --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml \
+    --exp_id OCTA6M-V1-SwinUNETR-VLM \
+    --epochs 1000 --patience 50
 ```
