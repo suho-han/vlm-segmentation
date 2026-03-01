@@ -1,0 +1,22 @@
+# V0: DRIVE × SwinUNETR + VLM gated fusion (BiomedCLIP)
+# exp_id: DRIVE-V0-SwinUNETR-VLM
+dataset:    "DRIVE"
+model:      "swinunetr_vlm"
+image_size: 512
+batch_size: 2
+epochs:     100
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+
+swinunetr:
+  img_size:       512
+  feature_size:   48
+  use_checkpoint: false
+
+vlm:
+  text_dim:      512
+  dummy_dataset: "DRIVE"
+  # backbone: filled at runtime (BiomedCLIP or CLIP-ViT-B-16-openai)

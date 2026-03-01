@@ -1,0 +1,25 @@
+# V1: DRIVE × SwinUNETR + VLM image spatial injection (BiomedCLIP ViT-B/16)
+# exp_id: DRIVE-V1-SwinUNETR-VLM
+dataset:    "DRIVE"
+model:      "swinunetr_vlm_v1"
+image_size: 512  # must be divisible by 32 for SwinUNETR
+batch_size: 2
+epochs:     100
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+
+swinunetr:
+  img_size:       512
+  feature_size:   48
+  use_checkpoint: false
+
+vlm:
+  mode:          "image"    # V1: inject per-image spatial features
+  text_dim:      512        # for optional text gate (not used in mode=image)
+  vlm_dim:       512        # BiomedCLIP ViT-B/16 projection output dim
+  alpha_init:    0.1        # initial injection scale (learnable)
+  dummy_dataset: "DRIVE"
+  # backbone: filled at runtime (BiomedCLIP or CLIP-ViT-B-16-openai)

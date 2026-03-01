@@ -33,10 +33,46 @@ from src.metrics.dice_iou import compute_metrics
 from src.metrics.hd95 import hd95
 from src.metrics.topology import betti_error
 from src.models import build_model
-from src.utils import get_logger, load_yaml, save_json, setup_run_dir
+from src.utils import get_logger, load_yaml, save_json, save_yaml, setup_run_dir
 
 
-# ─── CLI ────────────────────────────────────────────────────────────────────
+# --- VLM helpers ------------------------------------------------------------
+
+_VLM_MODELS = {"swinunetr_vlm", "swinunetr_vlm_v1"}
+
+
+def _build_vlm_prior(cfg: dict, device: torch.device):
+    """Return a VLMPrior instance if model is a VLM variant, else None."""
+    if cfg.get("model", "").lower() not in _VLM_MODELS:
+        return None
+    from src.models.vlm_prior import VLMPrior
+    dataset = cfg.get("dataset", "OCTA500-6M")
+    if dataset == "dummy":
+        dataset = cfg.get("vlm", {}).get("dummy_dataset", "OCTA500-6M")
+    prior = VLMPrior(dataset=dataset, device=device)
+    cfg.setdefault("vlm", {})["backbone"] = prior.backbone_name
+    return prior
+
+
+def _vlm_mode(cfg: dict) -> str:
+    """Return the effective VLM mode: 'text' | 'image' | 'both'."""
+    model = cfg.get("model", "").lower()
+    default = "image" if "vlm_v1" in model else "text"
+    return cfg.get("vlm", {}).get("mode", default)
+
+
+def _model_forward(model, imgs, cfg, text_embed=None, image_vlm_feat=None):
+    """Dispatch model forward based on model type."""
+    name = cfg.get("model", "").lower()
+    if name in ("swinunetr_vlm_v1", "segformer_b2", "transunet"):
+        return model(imgs, text_embed=text_embed, image_vlm_feat=image_vlm_feat)
+    elif name == "swinunetr_vlm":
+        return model(imgs, text_embed)
+    else:
+        return model(imgs)
+
+
+# --- CLI --------------------------------------------------------------------
 
 def parse_args():
     p = argparse.ArgumentParser(description="Vessel segmentation evaluator")
@@ -58,13 +94,18 @@ def parse_args():
     p.add_argument("--dummy",      action="store_true",
                    help="Use dummy (random) data")
     p.add_argument("--dummy_data", type=int, default=0,
-                   help="1 → use dummy random data (same as --dummy)")
+                   help="1 -> use dummy random data (same as --dummy)")
+    # VLM V1 options
+    p.add_argument("--vlm_mode",       default=None,
+                   choices=["text", "image", "both"],
+                   help="VLM injection mode (overrides config vlm.mode)")
+    p.add_argument("--vlm_alpha_init", type=float, default=None,
+                   help="Initial alpha for spatial injection (default 0.1)")
     return p.parse_args()
 
 
 def merge_cfg(args) -> dict:
     cfg = load_yaml(args.config)
-    # data_root priority: CLI > DATA_ROOT env var > config YAML
     data_root = args.data_root or os.environ.get("DATA_ROOT") or cfg.get("data_root", "./data")
     overrides = {
         "dataset":    args.dataset,
@@ -82,13 +123,17 @@ def merge_cfg(args) -> dict:
     for k, v in overrides.items():
         if v is not None:
             cfg[k] = v
+    # VLM sub-keys
+    if args.vlm_mode is not None:
+        cfg.setdefault("vlm", {})["mode"] = args.vlm_mode
+    if args.vlm_alpha_init is not None:
+        cfg.setdefault("vlm", {})["alpha_init"] = args.vlm_alpha_init
     return cfg
 
 
-# ─── metrics helpers ─────────────────────────────────────────────────────────
+# --- metrics helpers ---------------------------------------------------------
 
 def _safe_hd95(pred_bin: np.ndarray, gt_bin: np.ndarray) -> float:
-    """hd95 with explicit edge-case: empty pred or gt → inf."""
     if not pred_bin.any() or not gt_bin.any():
         return float("inf")
     try:
@@ -98,7 +143,6 @@ def _safe_hd95(pred_bin: np.ndarray, gt_bin: np.ndarray) -> float:
 
 
 def _safe_betti(pred_bin: np.ndarray, gt_bin: np.ndarray) -> dict:
-    """betti_error with explicit edge-case: empty masks → 0 components/holes."""
     try:
         return betti_error(pred_bin, gt_bin)
     except Exception:
@@ -107,13 +151,6 @@ def _safe_betti(pred_bin: np.ndarray, gt_bin: np.ndarray) -> dict:
 
 
 def _lock_metrics_keys(raw: dict) -> dict:
-    """
-    Standardise metric keys for metrics.json output contract.
-
-    Required keys: Dice, IoU, hd95, betti_beta0, betti_beta1
-    betti_beta0 = mean |b0_pred - b0_target|  (connected-component count error)
-    betti_beta1 = mean |b1_pred - b1_target|  (hole count error, Euler proxy)
-    """
     return {
         "Dice":         raw.get("dice",    raw.get("Dice",    0.0)),
         "IoU":          raw.get("iou",     raw.get("IoU",     0.0)),
@@ -124,7 +161,6 @@ def _lock_metrics_keys(raw: dict) -> dict:
         "hd95":         raw.get("hd95",      float("inf")),
         "betti_beta0":  raw.get("b0_error",  raw.get("betti_beta0", 0.0)),
         "betti_beta1":  raw.get("b1_error",  raw.get("betti_beta1", 0.0)),
-        # Keep raw betti sub-fields for debugging
         "b0_pred":      raw.get("b0_pred",   0.0),
         "b0_target":    raw.get("b0_target", 0.0),
         "b1_pred":      raw.get("b1_pred",   0.0),
@@ -132,14 +168,9 @@ def _lock_metrics_keys(raw: dict) -> dict:
     }
 
 
-# ─── pred_vis ─────────────────────────────────────────────────────────────────
+# --- pred_vis ----------------------------------------------------------------
 
 def save_prediction_vis(imgs, masks, preds, run_dir: Path, n: int = 20):
-    """Save side-by-side visualisations: image | gt | prediction.
-
-    Args:
-        imgs, masks, preds: lists of (H, W) float32 numpy arrays.
-    """
     try:
         import torchvision.utils as vutils
         vis_dir = run_dir / "pred_vis"
@@ -158,7 +189,7 @@ def save_prediction_vis(imgs, masks, preds, run_dir: Path, n: int = 20):
         print(f"[WARN] Could not save pred_vis: {e}")
 
 
-# ─── main ────────────────────────────────────────────────────────────────────
+# --- main --------------------------------------------------------------------
 
 def main():
     args = parse_args()
@@ -173,6 +204,18 @@ def main():
     _, val_loader, test_loader = get_loaders(cfg)
     model = build_model(cfg).to(device)
 
+    # VLM prior
+    vlm_prior = _build_vlm_prior(cfg, device)
+    text_embed = None
+    if vlm_prior is not None:
+        logger.info(f"VLM backbone: {vlm_prior.backbone_name}")
+        logger.info(f"VLM prompt:   {vlm_prior.prompt}")
+        logger.info(f"VLM mode:     {_vlm_mode(cfg)}")
+        if _vlm_mode(cfg) in ("text", "both"):
+            text_embed = vlm_prior.get_text_embed()
+        # Re-save config with backbone name recorded
+        save_yaml(dict(cfg), run_dir / "config.yaml")
+
     ckpt_path = Path(args.ckpt)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
@@ -183,6 +226,8 @@ def main():
     threshold  = cfg.get("threshold", 0.5)
     pred_vis_n = cfg.get("pred_vis_n", 20)
     use_amp    = cfg.get("amp", True) and device.type == "cuda"
+    mode       = _vlm_mode(cfg)
+    need_img   = vlm_prior is not None and mode in ("image", "both")
 
     all_metrics: list[dict] = []
     all_imgs, all_masks, all_preds = [], [], []
@@ -191,8 +236,13 @@ def main():
     with torch.no_grad():
         for imgs, masks in test_loader:
             imgs, masks = imgs.to(device), masks.to(device)
+
+            img_feat = None
+            if need_img:
+                img_feat = vlm_prior.get_image_features(imgs)
+
             with autocast("cuda", enabled=use_amp):
-                logits = model(imgs)
+                logits = _model_forward(model, imgs, cfg, text_embed, img_feat)
             probs = torch.sigmoid(logits).cpu().numpy()
             tgts  = masks.cpu().numpy()
 
@@ -215,7 +265,7 @@ def main():
                 all_masks.append(t[np.newaxis])
                 all_preds.append(p[np.newaxis])
 
-    # ── Aggregate (mean over test set; inf-safe for hd95) ──────────────────
+    # Aggregate (mean over test set; inf-safe for hd95)
     agg: dict[str, float] = {}
     for key in all_metrics[0].keys():
         vals = [m[key] for m in all_metrics
@@ -231,12 +281,10 @@ def main():
     for k, v in agg.items():
         logger.info(f"  {k}: {v:.4f}" if v != float("inf") else f"  {k}: inf")
 
-    # Guarantee the 5 required keys are present (fill with sentinel if missing)
     for required in ("Dice", "IoU", "hd95", "betti_beta0", "betti_beta1"):
         if required not in agg:
             agg[required] = float("inf") if required == "hd95" else 0.0
 
-    # Mark dummy runs clearly
     if cfg.get("_dummy"):
         agg["_note"] = "dummy_data"
 
@@ -244,7 +292,6 @@ def main():
               run_dir / "metrics.json")
     logger.info(f"Metrics saved to {run_dir / 'metrics.json'}")
 
-    # ── Visualisations ───────────────────────────────────────────────────────
     flat_imgs  = [x.squeeze() for batch in all_imgs  for x in batch]
     flat_masks = [x.squeeze() for x in all_masks]
     flat_preds = [x.squeeze() for x in all_preds]

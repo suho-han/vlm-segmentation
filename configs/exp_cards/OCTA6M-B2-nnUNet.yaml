@@ -1,0 +1,17 @@
+# Baseline B2: OCTA500-6M × nnU-Net 2D
+# exp_id: OCTA6M-B2-nnUNet
+dataset:    "OCTA500-6M"
+model:      "nnunet_2d"
+image_size: 384   # divisible by 32 (2^5), matches OCTA SwinUNETR
+batch_size: 4
+epochs:     100
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+nnunet:
+  base_channels:    32
+  n_pool:           5
+  max_channels:     320
+  deep_supervision: false

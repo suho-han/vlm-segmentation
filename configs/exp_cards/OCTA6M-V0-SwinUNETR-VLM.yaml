@@ -1,0 +1,22 @@
+# V0: OCTA500-6M × SwinUNETR + VLM gated fusion (BiomedCLIP)
+# exp_id: OCTA6M-V0-SwinUNETR-VLM
+dataset:    "OCTA500-6M"
+model:      "swinunetr_vlm"
+image_size: 384  # must be divisible by 32 for SwinUNETR
+batch_size: 4
+epochs:     100
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+
+swinunetr:
+  img_size:       384
+  feature_size:   48
+  use_checkpoint: false
+
+vlm:
+  text_dim:      512
+  dummy_dataset: "OCTA500-6M"
+  # backbone: filled at runtime (BiomedCLIP or CLIP-ViT-B-16-openai)

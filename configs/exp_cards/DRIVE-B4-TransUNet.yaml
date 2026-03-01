@@ -1,0 +1,17 @@
+# B4: DRIVE × TransUNet (ViT-B/16 + CNN decoder)
+# exp_id: DRIVE-B4-TransUNet
+dataset:    "DRIVE"
+model:      "transunet"
+image_size: 512
+batch_size: 2
+epochs:     100
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+
+transunet:
+  timm_model:  "vit_base_patch16_384"
+  pretrained:  false
+  decoder_chs: [256, 128, 64, 16]

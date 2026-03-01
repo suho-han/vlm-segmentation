@@ -1,0 +1,17 @@
+# B3: OCTA500-6M × SegFormer-B2 (PVT-v2-B2 backbone + All-MLP decoder)
+# exp_id: OCTA6M-B3-SegFormer
+dataset:    "OCTA500-6M"
+model:      "segformer_b2"
+image_size: 384
+batch_size: 4
+epochs:     100
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+
+segformer:
+  pretrained:  false
+  decoder_dim: 256
+  dropout:     0.1
