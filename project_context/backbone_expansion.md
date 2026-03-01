@@ -16,7 +16,9 @@
   - Betti errors: -15% vs SwinUNETR
 
 ### Progress Summary
-- **Phase A (Baselines)**: nnU-Net (B2) implementation complete.
+- **Phase A (Baselines)**: nnU-Net (B2), SegFormer (B3), TransUNet (B4) implementation and training complete.
 - **Phase B (VLM Feasibility)**: UNETR-2D and TransUNet blueprints defined.
-- **Phase C (Execution)**: Pending training for `A0` (Baseline) and `V1` (Image-branch) for selected models.
+- **Phase C (Execution)**: 
+  - SwinUNETR-V1 (Image-branch) training complete.
+  - Pending V1 implementation and training for SegFormer and TransUNet.
 
