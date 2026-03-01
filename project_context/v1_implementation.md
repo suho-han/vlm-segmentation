@@ -17,22 +17,27 @@
 
 ```bash
 # OCTA500-6M
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py 
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py 
     --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml 
     --exp_id OCTA6M-V1-SwinUNETR-VLM --data_root ./data --outdir runs
 
 # DRIVE
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py 
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py 
     --config configs/exp_cards/DRIVE-V1-SwinUNETR-VLM.yaml 
     --exp_id DRIVE-V1-SwinUNETR-VLM --data_root ./data --outdir runs
 ```
 
-### Pending V1 result rows (fill after training)
+### V1 Result (SwinUNETR-VLM)
 
-| exp_id                  | Dice | IoU | hd95 | β0 err | β1 err | best_val |
-| ----------------------- | ---- | --- | ---- | ------ | ------ | -------- |
-| DRIVE-V1-SwinUNETR-VLM  | —    | —   | —    | —      | —      | —        |
-| OCTA6M-V1-SwinUNETR-VLM | —    | —   | —    | —      | —      | —        |
+| exp_id                  | Dice   | IoU    | hd95 | β0 err | β1 err | best_val |
+| ----------------------- | ------ | ------ | ---- | ------ | ------ | -------- |
+| DRIVE-V1-SwinUNETR-VLM  | 0.7764 | 0.6349 | 8.96 | 42.10  | 19.80  | 0.7814   |
+| OCTA6M-V1-SwinUNETR-VLM | 0.8456 | 0.7331 | 1.87 | 29.69  | 5.46   | 0.8402   |
+
+**V1 Observations:**
+- Spatial injection (Image-branch) shows slight Dice/IoU improvement over V0/B0 on both datasets.
+- **DRIVE:** hd95 regressed back to B0 levels (8.96), but β1 error (holes) is at its lowest (19.80).
+- **OCTA:** Achieved lowest hd95 (1.87) among SwinUNETR variants.
 
 ### After V1: Next Candidates
 

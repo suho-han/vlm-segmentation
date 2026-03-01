@@ -18,7 +18,7 @@ Use `scripts/backbone_compare.py` to automatically aggregate `metrics.json` acro
 ### Command
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python scripts/backbone_compare.py \
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python scripts/backbone_compare.py \
   --runs_dir runs \
   --out_dir runs/backbone_compare
 ```

@@ -2,16 +2,16 @@
 
 ### Default GPU Assignment
 
-Unless explicitly specified otherwise, **always use GPU 2 only**.
+Unless explicitly specified otherwise, **use GPU 0 or 1 (available ones) instead of GPU 2**.
 
 ### Execution Rule
 
 All training / evaluation commands must set:
 
-CUDA_VISIBLE_DEVICES=2
+CUDA_VISIBLE_DEVICES=0  # or 1
 
 Example:
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py ...
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py ...
 ```

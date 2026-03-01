@@ -1,4 +1,4 @@
-# [Project Objectives]
+# Project Objectives
 
 Improve boundary accuracy (hd95) and topological connectivity (Betti β0/β1) beyond Dice/IoU by injecting Vision-Language Model (VLM) feature priors into 2D vessel segmentation (OCTA500-6M, DRIVE).
 
@@ -8,9 +8,7 @@ Improve boundary accuracy (hd95) and topological connectivity (Betti β0/β1) be
 2. Gated fusion (1×1 Conv + Sigmoid) → Enhances boundary accuracy (hd95) compared to static fusion.
 3. Predicting QC scores using VLM embeddings + internal segmentation features → Detects bad cases.
 
----
-
-# [Environment]
+## Environment
 
 - **Path:** `/data1/suhohan/vlm-segmentation`
 - **venv:** `.venv/` (Python 3.11, torch 2.10.0+cu128, monai 1.5.2, einops, open_clip_torch 3.3.0, transformers)
@@ -36,27 +34,27 @@ uv run pytest -q
 
 ---
 
-# [GPU Usage Policy]
+## [GPU Usage Policy]
 
 ### Default GPU Assignment
 
-Unless explicitly specified otherwise, **always use GPU 2 only**.
+Unless explicitly specified otherwise, **use GPU 0 or 1 (available ones) instead of GPU 2**.
 
 ### Execution Rule
 
 All training / evaluation commands must set:
 
-CUDA_VISIBLE_DEVICES=2
+CUDA_VISIBLE_DEVICES=0  # or 1
 
 Example:
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py ...
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py ...
 ```
 
 ---
 
-# [Project Structure]
+## [Project Structure]
 
 ```text
 vlm-segmentation/
@@ -82,7 +80,7 @@ vlm-segmentation/
 
 ---
 
-# [Runs Output Contract]
+## [Runs Output Contract]
 
 `runs/{dataset}/{model}/{exp_id}/`
 
@@ -102,46 +100,51 @@ Use `scripts/backbone_compare.py` to automatically aggregate `metrics.json` acro
 ### Command
 
 ```bash
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python scripts/backbone_compare.py \
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python scripts/backbone_compare.py \
   --runs_dir runs \
   --out_dir runs/backbone_compare
 ```
 
 ---
 
-# [Metrics Keys (LOCK)]
+## [Metrics Keys (LOCK)]
 
 Required keys in `metrics.json`: `Dice`, `IoU`, `hd95`, `betti_beta0`, `betti_beta1`
 
-| Key | Description | Edge Case |
-|----|------|------------|
-| `Dice` | Sørensen–Dice | empty pred/gt → ~0 (Laplace) |
-| `IoU` | Jaccard Index | empty pred/gt → ~0 |
-| `hd95` | 95th Hausdorff (px) | empty pred or gt → **inf** |
-| `betti_beta0` | \|β0_pred - β0_gt\| | connectivity (skimage label) |
+| Key           | Description         | Edge Case                     |
+| ------------- | ------------------- | ----------------------------- |
+| `Dice`        | Sørensen–Dice       | empty pred/gt → ~0 (Laplace)  |
+| `IoU`         | Jaccard Index       | empty pred/gt → ~0            |
+| `hd95`        | 95th Hausdorff (px) | empty pred or gt → **inf**    |
+| `betti_beta0` | \|β0_pred - β0_gt\| | connectivity (skimage label)  |
 | `betti_beta1` | \|β1_pred - β1_gt\| | holes (complement components) |
 
 ### Betti Proxy Implementation
+
 - **β0:** `skimage.measure.label` 8-connectivity.
 - **β1:** complement 1-connectivity components - 1.
 - Euler characteristic based proxy (not full persistent homology).
 
 ---
 
-# [Data]
+## [Data]
 
 ### DATA_ROOT Priority
+
 1. **CLI:** `--data_root /path`
 2. **Env:** `export DATA_ROOT=/path`
 3. **Config:** `configs/defaults.yaml` (`data_root: "./data"`)
 
 ### Auto-discovery
+
 Folders under `DATA_ROOT` are matched by keywords:
+
 - **OCTA500-6M:** `OCTA500_6M`, `OCTA500-6M`, `OCTA500`
 - **DRIVE:** `DRIVE`, `drive`
 
 ### Structure
-```
+
+```text
 data/
 ├── OCTA500_6M/          # img: *.bmp, label: *.bmp
 │   ├── train/ images/ + labels/
@@ -159,7 +162,7 @@ data/
 
 ---
 
-# [Model Constraints]
+## [Model Constraints]
 
 - **SwinUNETR** (monai 1.5.2): `img_size` % 32 == 0 → OCTA=384, DRIVE=512
   - `spatial_dims=2`, no `img_size` argument (changed in monai≥1.4)
@@ -168,31 +171,33 @@ data/
 
 ---
 
-# [All Results]
+## [All Results]
 
 **Config:** epochs=100, AdamW lr=1e-4, Dice+BCE loss. DRIVE batch=2, OCTA batch=4.
 
 ### DRIVE
 
-| exp_id                 | Dice   | IoU    | hd95     | β0 err | β1 err | best_val |
-| ---------------------- | ------ | ------ | -------- | ------ | ------ | -------- |
-| DRIVE-B0-SwinUNETR     | 0.7746 | 0.6324 | 8.94     | 38.95  | 21.15  | 0.7802   |
+| exp_id                 | Dice   | IoU    | hd95     | β0 err | β1 err    | best_val |
+| ---------------------- | ------ | ------ | -------- | ------ | --------- | -------- |
+| DRIVE-B0-SwinUNETR     | 0.7746 | 0.6324 | 8.94     | 38.95  | 21.15     | 0.7802   |
 | DRIVE-B1-UNetPP        | 0.7988 | 0.6652 | **4.36** | 41.15  | **15.25** | 0.8071   |
-| DRIVE-B2-nnUNet        | 0.7585 | 0.6113 | 8.41     | 50.50  | 10.30  | 0.7650   |
-| DRIVE-V0-SwinUNETR-VLM | 0.7761 | 0.6344 | 8.14     | 47.75  | 20.90  | 0.7811   |
+| DRIVE-B2-nnUNet        | 0.7585 | 0.6113 | 8.41     | 50.50  | 10.30     | 0.7650   |
+| DRIVE-V0-SwinUNETR-VLM | 0.7761 | 0.6344 | 8.14     | 47.75  | 20.90     | 0.7811   |
+| DRIVE-V1-SwinUNETR-VLM | 0.7764 | 0.6349 | 8.96     | 42.10  | 19.80     | 0.7814   |
 
 ### OCTA500-6M
 
-| exp_id                  | Dice   | IoU    | hd95     | β0 err    | β1 err   | best_val |
-| ----------------------- | ------ | ------ | -------- | --------- | -------- | -------- |
-| OCTA6M-B0-SwinUNETR     | 0.8454 | 0.7329 | 1.90     | 27.77     | 5.66     | 0.8390   |
+| exp_id                  | Dice       | IoU        | hd95     | β0 err    | β1 err   | best_val |
+| ----------------------- | ---------- | ---------- | -------- | --------- | -------- | -------- |
+| OCTA6M-B0-SwinUNETR     | 0.8454     | 0.7329     | 1.90     | 27.77     | 5.66     | 0.8390   |
 | OCTA6M-B1-UNetPP        | **0.8864** | **0.7969** | **1.83** | **25.90** | 6.15     | 0.8814   |
-| OCTA6M-B2-nnUNet        | 0.8438 | 0.7305 | 1.99     | 29.04     | 6.79     | 0.8381   |
-| OCTA6M-V0-SwinUNETR-VLM | 0.8450 | 0.7323 | 1.89     | 27.21     | **5.16** | 0.8393   |
+| OCTA6M-B2-nnUNet        | 0.8438     | 0.7305     | 1.99     | 29.04     | 6.79     | 0.8381   |
+| OCTA6M-V0-SwinUNETR-VLM | 0.8450     | 0.7323     | 1.89     | 27.21     | **5.16** | 0.8393   |
+| OCTA6M-V1-SwinUNETR-VLM | 0.8456     | 0.7331     | 1.87     | 29.69     | 5.46     | 0.8402   |
 
 ---
 
-# [V0 Analysis: What the Text Feature Actually Does]
+## [V0 Analysis: What the Text Feature Actually Does]
 
 **What it is:** A single fixed `(1, 512)` unit-norm vector, computed once per run from BiomedCLIP's text encoder on a fixed string prompt. The same vector is used for every image, every batch, every epoch.
 
@@ -218,7 +223,7 @@ Applied at 4 decoder levels: `C = [384, 192, 96, 48]` (coarse → fine).
 
 ---
 
-# [V1 Implementation: COMPLETE (2026-03-01)]
+## [V1 Implementation: COMPLETE (2026-03-01)]
 
 ### What was built
 
@@ -237,12 +242,12 @@ Applied at 4 decoder levels: `C = [384, 192, 96, 48]` (coarse → fine).
 
 ```bash
 # OCTA500-6M
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py 
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py 
     --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml 
     --exp_id OCTA6M-V1-SwinUNETR-VLM --data_root ./data --outdir runs
 
 # DRIVE
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py 
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py 
     --config configs/exp_cards/DRIVE-V1-SwinUNETR-VLM.yaml 
     --exp_id DRIVE-V1-SwinUNETR-VLM --data_root ./data --outdir runs
 ```
@@ -262,10 +267,11 @@ CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py
 
 ---
 
-# [Backbone Expansion: Top-2 Selection & Strategy (2026-03-01)]
+## [Backbone Expansion: Top-2 Selection & Strategy (2026-03-01)]
 
 ### Top-2 ViT Selection (VLM Focus)
-1. **UNETR-2D**: 
+
+1. **UNETR-2D**:
    - **Rationale**: Non-hierarchical ViT-Base encoder aligns perfectly with BiomedCLIP-L/14 patch structure.
    - **Injection**: Token-level addition (`vit_block + alpha * vlm_patch`).
 2. **TransUNet**:
@@ -273,21 +279,22 @@ CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py
    - **Injection**: Decoder bottleneck gating + skip-connection refinement.
 
 ### Implementation Strategy
+
 - **SegFormer-B2 Style**: Use `timm.create_model('pvt_v2_b2')` as the MiT-B2 equivalent encoder.
 - **Blueprint Reference**: `papers/direction/backbone_expand/top2_blueprint.md`
-- **Metric Targets**: 
+- **Metric Targets**:
   - hd95: -10% vs SwinUNETR
   - Betti errors: -15% vs SwinUNETR
 
 ### Progress Summary
+
 - **Phase A (Baselines)**: nnU-Net (B2) implementation complete.
 - **Phase B (VLM Feasibility)**: UNETR-2D and TransUNet blueprints defined.
 - **Phase C (Execution)**: Pending training for `A0` (Baseline) and `V1` (Image-branch) for selected models.
 
-
 ---
 
-# [Paper Knowledge Base (2026-02-27)]
+## [Paper Knowledge Base (2026-02-27)]
 
 - **Status:** 46 papers collected (`papers/index.csv`, `papers/cards/`)
 
@@ -307,7 +314,7 @@ CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py
 
 ---
 
-# [Git]
+## [Git]
 
 ```text
 b7a2186  feat: Add vlm_prior.py model
@@ -321,24 +328,23 @@ d920336  Remove runs/ from version control
 
 ---
 
-# [Key Commands]
+## [Key Commands]
 
 ```bash
 # Testing
 env -u VIRTUAL_ENV uv run pytest -q
 
 # Baseline Execution (UNETR, TransUNet, nnU-Net)
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-A0-UNETR.yaml --exp_id OCTA6M-A0-UNETR --outdir runs
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-A0-TransUNet.yaml --exp_id OCTA6M-A0-TransUNet --outdir runs
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-B2-nnUNet.yaml --exp_id OCTA6M-B2-nnUNet --outdir runs
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-A0-UNETR.yaml --exp_id OCTA6M-A0-UNETR --outdir runs
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-A0-TransUNet.yaml --exp_id OCTA6M-A0-TransUNet --outdir runs
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-B2-nnUNet.yaml --exp_id OCTA6M-B2-nnUNet --outdir runs
 
 # V1 Execution (Selected ViT Backbones)
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-V1-UNETR.yaml --exp_id OCTA6M-V1-UNETR --outdir runs
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-V1-TransUNet.yaml --exp_id OCTA6M-V1-TransUNet --outdir runs
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-V1-UNETR.yaml --exp_id OCTA6M-V1-UNETR --outdir runs
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-V1-TransUNet.yaml --exp_id OCTA6M-V1-TransUNet --outdir runs
 
 # SwinUNETR-V1 (Reference)
-CUDA_VISIBLE_DEVICES=2 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml --exp_id OCTA6M-V1-SwinUNETR-VLM --outdir runs
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml --exp_id OCTA6M-V1-SwinUNETR-VLM --outdir runs
 ```
 
 ---
-
