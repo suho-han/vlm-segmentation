@@ -26,7 +26,15 @@ from src.datasets import get_loaders
 from src.losses import build_loss
 from src.metrics.dice_iou import compute_metrics
 from src.models import build_model
-from src.utils import get_logger, load_yaml, save_json, save_yaml, set_seed, setup_run_dir
+from src.utils import (
+    build_optimizer,
+    get_logger,
+    load_yaml,
+    save_json,
+    save_yaml,
+    set_seed,
+    setup_run_dir,
+)
 
 
 # ─── VLM helpers ─────────────────────────────────────────────────────────────
@@ -35,8 +43,8 @@ _VLM_MODELS = {"swinunetr_vlm", "swinunetr_vlm_v1"}
 
 
 def _build_vlm_prior(cfg: dict, device: torch.device):
-    """Return a VLMPrior instance if model is a VLM variant, else None."""
-    if cfg.get("model", "").lower() not in _VLM_MODELS:
+    """Return a VLMPrior instance if model is a VLM variant or use_vlm=true, else None."""
+    if cfg.get("model", "").lower() not in _VLM_MODELS and not cfg.get("use_vlm", False):
         return None
     from src.models.vlm_prior import VLMPrior
     dataset = cfg.get("dataset", "OCTA500-6M")
@@ -83,6 +91,8 @@ def parse_args():
     p.add_argument("--epochs",     type=int,   default=1000)
     p.add_argument("--batch_size", type=int,   default=None)
     p.add_argument("--lr",         type=float, default=None)
+    p.add_argument("--lr_injection", type=float, default=None,
+                   help="Learning rate for VLM injection layers (default 10x lr)")
     p.add_argument("--seed",       type=int,   default=None)
     p.add_argument("--image_size", type=int,   default=None)
     p.add_argument("--amp",        action="store_true", default=None)
@@ -114,6 +124,7 @@ def merge_cfg(args) -> dict:
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "lr": args.lr,
+        "lr_injection": args.lr_injection,
         "seed": args.seed,
         "image_size": args.image_size,
         "patience": args.patience,
@@ -238,11 +249,7 @@ def main():
         save_yaml(dict(cfg), run_dir / "config.yaml")
 
     criterion = build_loss(cfg)
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=cfg.get("lr", 1e-4),
-        weight_decay=cfg.get("weight_decay", 1e-5),
-    )
+    optimizer = build_optimizer(model, cfg)
     scaler = GradScaler("cuda", enabled=cfg.get("amp", True) and device.type == "cuda")
 
     # Scheduler

@@ -1,0 +1,25 @@
+# B3-VLM: ISIC2018 × SegFormer-B2 + VLM image spatial injection
+# exp_id: ISIC2018-B3-SegFormer-VLM
+dataset:     "ISIC2018"
+in_channels: 3
+model:       "segformer_b2"
+use_vlm:     true
+image_size:  256
+batch_size:  8
+epochs:      1000
+lr:          1.0e-4
+scheduler:   "cosine"
+seed:        42
+amp:         true
+loss:        "bce_dice"
+
+segformer:
+  pretrained:  false
+  decoder_dim: 256
+  dropout:     0.1
+
+vlm:
+  mode:          "image"
+  vlm_dim:       512
+  alpha_init:    0.1
+  dummy_dataset: "ISIC2018"

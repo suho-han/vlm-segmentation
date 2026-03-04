@@ -36,6 +36,8 @@ _CLIP_STD  = (0.26862954, 0.26130258, 0.27577711)
 PROMPTS: dict[str, str] = {
     "OCTA500-6M": "retinal vessel segmentation in OCTA fundus image",
     "DRIVE":      "retinal blood vessel segmentation in fundus photograph",
+    "MoNuSeg":    "nuclei segmentation in H&E stained histology image",
+    "ISIC2018":   "skin lesion segmentation in dermoscopy image",
 }
 
 # BiomedCLIP model hub ID (open_clip hf-hub format)

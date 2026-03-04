@@ -92,7 +92,10 @@ class TransUNetSeg(ViTSegBase):
             raise ImportError("timm is required for TransUNetSeg. "
                               "Install with: uv pip install timm") from e
 
-        # ViT encoder: dynamic_img_size allows 512px (DRIVE) with pos embed interpolation
+        # ViT encoder with dynamic_img_size so get_intermediate_layers works at any resolution.
+        # We immediately resize pos_embed once at init (see _resize_pos_embed) so that
+        # training uses a fixed-size Parameter instead of on-the-fly interpolation every
+        # forward pass — avoids gradient instability at non-native resolutions (e.g. 512px).
         self.vit = timm.create_model(
             self._timm_model,
             pretrained=self.pretrained,
@@ -100,6 +103,7 @@ class TransUNetSeg(ViTSegBase):
             in_chans=self.in_channels,
             dynamic_img_size=True,
         )
+        self._resize_pos_embed()   # C2 fix: one-time bicubic resize to training resolution
         vit_dim = 768  # ViT-B hidden dim
 
         # CNN decoder: 4 upsampling stages doubling H,W each step
@@ -122,6 +126,40 @@ class TransUNetSeg(ViTSegBase):
 
         # VLM projection layers: Conv2d(vlm_dim → dec_ch) per stage, zero-init
         self._register_vlm_projs(self._dec_chs)
+
+    def _resize_pos_embed(self) -> None:
+        """
+        Resize ViT positional embeddings to match self.img_size (C2 fix).
+
+        timm's dynamic_img_size interpolates pos_embed on every forward pass, which
+        produces unstable gradients when training at a non-native resolution.
+        We do a single bicubic interpolation at init so pos_embed is a proper
+        (1, 1 + (img_size/16)^2, 768) Parameter for the entire training run.
+
+        No-op when img_size already matches the native model resolution.
+        """
+        pos_embed = self.vit.pos_embed          # (1, 1 + H_nat*W_nat, C)
+        cls_tok   = pos_embed[:, :1, :]         # (1, 1, C)
+        patch_pos = pos_embed[:, 1:, :]         # (1, N_nat, C)
+        n_nat     = patch_pos.shape[1]
+        h_nat     = w_nat = int(n_nat ** 0.5)   # e.g. 24 for vit_base_patch16_384
+
+        h_tgt = w_tgt = self.img_size // 16     # e.g. 32 for 512px, 24 for 384px
+        if h_tgt == h_nat:
+            return                              # already the right size
+
+        C = patch_pos.shape[2]
+        # Reshape to spatial grid, interpolate, flatten back
+        patch_pos = (patch_pos
+                     .reshape(1, h_nat, w_nat, C)
+                     .permute(0, 3, 1, 2)           # (1, C, H_nat, W_nat)
+                     .float())
+        patch_pos = F.interpolate(patch_pos, size=(h_tgt, w_tgt),
+                                  mode='bicubic', align_corners=False)
+        patch_pos = patch_pos.permute(0, 2, 3, 1).reshape(1, h_tgt * w_tgt, C)
+        self.vit.pos_embed = nn.Parameter(
+            torch.cat([cls_tok, patch_pos], dim=1).to(pos_embed.dtype)
+        )
 
     def _encode(self, x: torch.Tensor) -> list[torch.Tensor]:
         """

@@ -1,0 +1,13 @@
+# B1: MoNuSeg × UNet++
+# exp_id: MoNuSeg-B1-UNetPP
+dataset:     "MoNuSeg"
+in_channels: 3
+model:       "unetpp"
+image_size:  256
+batch_size:  8
+epochs:      1000
+lr:          1.0e-4
+scheduler:   "cosine"
+seed:        42
+amp:         true
+loss:        "bce_dice"

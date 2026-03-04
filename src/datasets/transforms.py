@@ -146,5 +146,12 @@ class Normalize:
         self.std = std
 
     def __call__(self, img, mask):
-        img = F.normalize(img, self.mean, self.std)
+        # Handle grayscale images by taking the mean of the stats if necessary
+        c = img.shape[0]
+        m, s = self.mean, self.std
+        if c == 1 and len(m) == 3:
+            m = [sum(m) / 3.0]
+            s = [sum(s) / 3.0]
+        
+        img = F.normalize(img, m, s)
         return img, mask

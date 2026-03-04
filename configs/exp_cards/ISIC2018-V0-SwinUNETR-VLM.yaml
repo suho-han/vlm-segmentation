@@ -1,0 +1,23 @@
+# V0: ISIC2018 × SwinUNETR + VLM text gate
+# exp_id: ISIC2018-V0-SwinUNETR-VLM
+dataset:     "ISIC2018"
+in_channels: 3
+model:       "swinunetr_vlm"
+image_size:  256
+batch_size:  8
+epochs:      1000
+lr:          1.0e-4
+scheduler:   "cosine"
+seed:        42
+amp:         true
+loss:        "bce_dice"
+
+swinunetr:
+  img_size:       256
+  feature_size:   48
+  use_checkpoint: false
+
+vlm:
+  mode:          "text"
+  text_dim:      512
+  dummy_dataset: "ISIC2018"

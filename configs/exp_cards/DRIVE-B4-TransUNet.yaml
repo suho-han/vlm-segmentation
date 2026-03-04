@@ -1,6 +1,7 @@
 # B4: DRIVE × TransUNet (ViT-B/16 + CNN decoder)
 # exp_id: DRIVE-B4-TransUNet
 dataset:    "DRIVE"
+in_channels: 3
 model:      "transunet"
 image_size: 512
 batch_size: 2
@@ -12,6 +13,6 @@ amp:        true
 loss:       "bce_dice"
 
 transunet:
-  timm_model:  "vit_base_patch16_384"
+  timm_model:  "vit_base_patch16_384"   # C2 fix: pos_embed bicubic-resized 24x24→32x32 at init
   pretrained:  false
   decoder_chs: [256, 128, 64, 16]

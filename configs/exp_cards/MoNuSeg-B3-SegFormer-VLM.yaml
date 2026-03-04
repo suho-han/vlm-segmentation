@@ -1,0 +1,25 @@
+# B3-VLM: MoNuSeg × SegFormer-B2 + VLM image spatial injection
+# exp_id: MoNuSeg-B3-SegFormer-VLM
+dataset:     "MoNuSeg"
+in_channels: 3
+model:       "segformer_b2"
+use_vlm:     true
+image_size:  256
+batch_size:  8
+epochs:      1000
+lr:          1.0e-4
+scheduler:   "cosine"
+seed:        42
+amp:         true
+loss:        "bce_dice"
+
+segformer:
+  pretrained:  false
+  decoder_dim: 256
+  dropout:     0.1
+
+vlm:
+  mode:          "image"
+  vlm_dim:       512
+  alpha_init:    0.1
+  dummy_dataset: "MoNuSeg"

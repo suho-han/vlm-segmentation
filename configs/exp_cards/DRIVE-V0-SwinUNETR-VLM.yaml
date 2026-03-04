@@ -1,6 +1,7 @@
 # V0: DRIVE × SwinUNETR + VLM gated fusion (BiomedCLIP)
 # exp_id: DRIVE-V0-SwinUNETR-VLM
 dataset:    "DRIVE"
+in_channels: 3
 model:      "swinunetr_vlm"
 image_size: 512
 batch_size: 2

@@ -33,10 +33,11 @@ from .transforms import (
     RandomVerticalFlip,
     Resize,
     ToTensor,
+    Normalize,
 )
 
 
-def _build_transforms(split: str, image_size: int):
+def _build_transforms(split: str, image_size: int, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     if split == "train":
         return Compose([
             RandomCrop(image_size),
@@ -44,11 +45,12 @@ def _build_transforms(split: str, image_size: int):
             RandomVerticalFlip(),
             ColorJitter(brightness=0.4, contrast=0.4, saturation=0.0, hue=0.0),
             ToTensor(),
+            Normalize(mean, std),
         ])
     else:
         return Compose([
-            Resize(image_size),
             ToTensor(),
+            Normalize(mean, std),
         ])
 
 
@@ -75,6 +77,8 @@ class OCTA500Dataset(Dataset):
         image_ext: str | None = None,   # None → auto-detect
         label_ext: str | None = None,   # None → auto-detect
         transform=None,
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225],
     ):
         self.images_dir = os.path.join(root_dir, split, "images")
         self.labels_dir = os.path.join(root_dir, split, "labels")
@@ -87,7 +91,7 @@ class OCTA500Dataset(Dataset):
 
         self.image_ext = image_ext or _detect_ext(self.images_dir)
         self.label_ext = label_ext or _detect_ext(self.labels_dir)
-        self.transform = transform or _build_transforms(split, image_size)
+        self.transform = transform or _build_transforms(split, image_size, mean, std)
 
         self.image_files = natsorted([
             f for f in os.listdir(self.images_dir)
@@ -103,7 +107,7 @@ class OCTA500Dataset(Dataset):
         fname = self.image_files[idx]
         stem = os.path.splitext(fname)[0]
 
-        img = Image.open(os.path.join(self.images_dir, fname)).convert("L")
+        img = Image.open(os.path.join(self.images_dir, fname))
         lbl_path = os.path.join(self.labels_dir, stem + self.label_ext)
         if not os.path.exists(lbl_path):
             raise FileNotFoundError(f"Label not found: {lbl_path}")
@@ -139,10 +143,12 @@ def get_octa500_loaders(cfg: dict):
     # Extensions: None means auto-detect per split
     image_ext = cfg.get("image_ext", None)
     label_ext = cfg.get("label_ext", None)
+    mean = cfg.get("image_mean", [0.485, 0.456, 0.406])
+    std  = cfg.get("image_std",  [0.229, 0.224, 0.225])
 
-    train_ds = OCTA500Dataset(str(dataset_root), "train", image_size, image_ext, label_ext)
-    val_ds   = OCTA500Dataset(str(dataset_root), "val",   image_size, image_ext, label_ext)
-    test_ds  = OCTA500Dataset(str(dataset_root), "test",  image_size, image_ext, label_ext)
+    train_ds = OCTA500Dataset(str(dataset_root), "train", image_size, image_ext, label_ext, mean=mean, std=std)
+    val_ds   = OCTA500Dataset(str(dataset_root), "val",   image_size, image_ext, label_ext, mean=mean, std=std)
+    test_ds  = OCTA500Dataset(str(dataset_root), "test",  image_size, image_ext, label_ext, mean=mean, std=std)
 
     train_loader = DataLoader(
         train_ds, batch_size=batch_size, shuffle=True,

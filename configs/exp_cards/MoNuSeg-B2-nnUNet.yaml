@@ -1,0 +1,18 @@
+# B2: MoNuSeg × nnU-Net 2D
+# exp_id: MoNuSeg-B2-nnUNet
+dataset:     "MoNuSeg"
+in_channels: 3
+model:       "nnunet_2d"
+image_size:  256
+batch_size:  8
+epochs:      1000
+lr:          1.0e-4
+scheduler:   "cosine"
+seed:        42
+amp:         true
+loss:        "bce_dice"
+
+nnunet:
+  base_channels: 32
+  max_channels:  320
+  n_pool:        5

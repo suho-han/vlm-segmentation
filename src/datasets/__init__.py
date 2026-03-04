@@ -1,6 +1,8 @@
 from .octa500 import OCTA500Dataset, get_octa500_loaders
 from .drive import DRIVEDataset, get_drive_loaders
 from .dummy import DummyDataset, get_dummy_loaders
+from .monuseg import MoNuSegDataset, get_monuseg_loaders
+from .isic2018 import ISIC2018Dataset, get_isic2018_loaders
 
 
 def get_loaders(cfg):
@@ -16,5 +18,12 @@ def get_loaders(cfg):
         return get_octa500_loaders(cfg)
     elif name == "DRIVE":
         return get_drive_loaders(cfg)
+    elif name == "MoNuSeg":
+        return get_monuseg_loaders(cfg)
+    elif name == "ISIC2018":
+        return get_isic2018_loaders(cfg)
     else:
-        raise ValueError(f"Unknown dataset: {name!r}. Valid: dummy, OCTA500-6M, OCTA500-3M, DRIVE")
+        raise ValueError(
+            f"Unknown dataset: {name!r}. "
+            "Valid: dummy, OCTA500-6M, OCTA500-3M, DRIVE, MoNuSeg, ISIC2018"
+        )

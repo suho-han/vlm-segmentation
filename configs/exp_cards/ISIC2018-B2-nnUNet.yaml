@@ -1,0 +1,19 @@
+# B2: ISIC2018 × nnU-Net 2D
+# exp_id: ISIC2018-B2-nnUNet
+dataset:     "ISIC2018"
+in_channels: 3
+model:       "nnunet_2d"
+image_size:  256
+batch_size:  8
+epochs:      1000
+lr:          1.0e-4
+scheduler:   "cosine"
+seed:        42
+amp:         true
+loss:        "bce_dice"
+
+nnunet:
+  in_channels:  3
+  base_channels: 32
+  n_pool:       5
+  max_channels: 320

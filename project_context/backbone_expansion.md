@@ -18,7 +18,8 @@
 ### Progress Summary
 - **Phase A (Baselines)**: nnU-Net (B2), SegFormer (B3), TransUNet (B4) implementation and training complete.
 - **Phase B (VLM Feasibility)**: UNETR-2D and TransUNet blueprints defined.
-- **Phase C (Execution)**: 
-  - SwinUNETR-V1 (Image-branch) training complete.
-  - Pending V1 implementation and training for SegFormer and TransUNet.
+- **Phase C (Execution - V2 Focus)**: 
+  - **SwinUNETR-V1-Topology**: Active training on GPU 0 (DRIVE, OCTA, MoNuSeg, ISIC).
+  - **SegFormer-VLM-V3-Topology**: Active training on GPU 0 (ISIC).
+  - **TransUNet-VLM**: Implementation complete via `use_vlm` flag.
 

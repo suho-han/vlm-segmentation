@@ -1,0 +1,27 @@
+# V3-Topo: ISIC2018 × SegFormer-B2 + VLM image + Topology-aware Loss
+# exp_id: ISIC2018-V3-SegFormer-VLM-Topology
+dataset:     "ISIC2018"
+in_channels: 3
+model:       "segformer_b2"
+image_size:  256
+batch_size:  8
+epochs:      1000
+lr:          1.0e-4
+lr_injection: 1.0e-3             # C4: 10x LR for injection layers
+scheduler:   "cosine"
+seed:        42
+amp:         true
+loss:        "topology_aware"    # C3: clDice + Dice + BCE
+cldice_weight: 1.0
+cldice_iters: 3
+
+segformer:
+  pretrained:  false
+  decoder_dim: 256
+  dropout:     0.1
+
+vlm:
+  mode:          "image"
+  vlm_dim:       512
+  alpha_init:    0.1
+  dummy_dataset: "ISIC2018"

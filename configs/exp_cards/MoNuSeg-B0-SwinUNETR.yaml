@@ -1,0 +1,18 @@
+# B0: MoNuSeg × SwinUNETR
+# exp_id: MoNuSeg-B0-SwinUNETR
+dataset:     "MoNuSeg"
+in_channels: 3
+model:       "swinunetr"
+image_size:  256
+batch_size:  8
+epochs:      1000
+lr:          1.0e-4
+scheduler:   "cosine"
+seed:        42
+amp:         true
+loss:        "bce_dice"
+
+swinunetr:
+  img_size:       256
+  feature_size:   48
+  use_checkpoint: false

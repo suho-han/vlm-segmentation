@@ -1,0 +1,19 @@
+# B4: MoNuSeg × TransUNet (ViT-B/16 + CNN decoder)
+# exp_id: MoNuSeg-B4-TransUNet
+# Note: 256px input → pos_embed bicubic-resized 24x24→16x16 at init (C2 fix)
+dataset:     "MoNuSeg"
+in_channels: 3
+model:       "transunet"
+image_size:  256
+batch_size:  8
+epochs:      1000
+lr:          1.0e-4
+scheduler:   "cosine"
+seed:        42
+amp:         true
+loss:        "bce_dice"
+
+transunet:
+  timm_model:  "vit_base_patch16_384"
+  pretrained:  false
+  decoder_chs: [256, 128, 64, 16]

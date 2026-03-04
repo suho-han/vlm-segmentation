@@ -42,8 +42,8 @@ _VLM_MODELS = {"swinunetr_vlm", "swinunetr_vlm_v1"}
 
 
 def _build_vlm_prior(cfg: dict, device: torch.device):
-    """Return a VLMPrior instance if model is a VLM variant, else None."""
-    if cfg.get("model", "").lower() not in _VLM_MODELS:
+    """Return a VLMPrior instance if model is a VLM variant or use_vlm=true, else None."""
+    if cfg.get("model", "").lower() not in _VLM_MODELS and not cfg.get("use_vlm", False):
         return None
     from src.models.vlm_prior import VLMPrior
     dataset = cfg.get("dataset", "OCTA500-6M")
@@ -179,8 +179,14 @@ def save_prediction_vis(imgs, masks, preds, run_dir: Path, n: int = 20):
         for i, (img, msk, prd) in enumerate(zip(imgs, masks, preds)):
             if saved >= n:
                 break
-            img_t = torch.from_numpy(np.asarray(img, dtype=np.float32)).unsqueeze(0)
-            msk_t = torch.from_numpy(np.asarray(msk, dtype=np.float32)).unsqueeze(0)
+            img_arr = np.asarray(img, dtype=np.float32)
+            # Normalise to (1, H, W) — average over channel dim if RGB
+            if img_arr.ndim == 3 and img_arr.shape[0] == 3:
+                img_arr = img_arr.mean(axis=0, keepdims=True)
+            elif img_arr.ndim == 2:
+                img_arr = img_arr[np.newaxis]
+            img_t = torch.from_numpy(img_arr)                                          # (1, H, W)
+            msk_t = torch.from_numpy(np.asarray(msk, dtype=np.float32)).unsqueeze(0)  # (1, H, W)
             prd_t = torch.from_numpy((np.asarray(prd) >= 0.5).astype(np.float32)).unsqueeze(0)
             grid = torch.stack([img_t, msk_t, prd_t], dim=0)
             vutils.save_image(grid, vis_dir / f"pred_{i:04d}.png", nrow=3)

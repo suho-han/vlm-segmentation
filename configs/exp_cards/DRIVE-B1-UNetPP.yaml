@@ -1,6 +1,7 @@
 # Baseline B1: DRIVE × UNet++
 # exp_id: DRIVE-B1-UNetPP
 dataset:    "DRIVE"
+in_channels: 3
 model:      "unetpp"
 image_size: 512
 batch_size: 2

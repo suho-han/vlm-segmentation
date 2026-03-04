@@ -1,0 +1,27 @@
+# V1-Topo: OCTA500-6M × SwinUNETR + VLM image + Topology-aware Loss
+# exp_id: OCTA6M-V1-SwinUNETR-VLM-Topology
+dataset:    "OCTA500-6M"
+in_channels: 1
+model:      "swinunetr_vlm_v1"
+image_size: 384
+batch_size: 4
+epochs:     1000
+lr:         1.0e-4
+lr_injection: 1.0e-3
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "topology_aware"
+cldice_weight: 1.0
+cldice_iters: 3
+
+swinunetr:
+  img_size:       384
+  feature_size:   48
+  use_checkpoint: false
+
+vlm:
+  mode:          "image"
+  vlm_dim:       512
+  alpha_init:    0.1
+  dummy_dataset: "OCTA500-6M"

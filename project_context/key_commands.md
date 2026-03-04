@@ -13,4 +13,9 @@ CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
     --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml \
     --exp_id OCTA6M-V1-SwinUNETR-VLM \
     --epochs 1000 --patience 50
+
+# Topology-aware Training (V2)
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
+    --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM-Topology.yaml \
+    --loss topology_aware --lr_injection 1e-3
 ```

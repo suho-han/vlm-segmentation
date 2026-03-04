@@ -11,11 +11,12 @@ from torch.utils.data import DataLoader, Dataset
 
 
 class DummyDataset(Dataset):
-    """Generates random grayscale images + binary masks on the fly."""
+    """Generates random images + binary masks on the fly."""
 
-    def __init__(self, n: int = 32, image_size: int = 64, seed: int = 42):
+    def __init__(self, n: int = 32, image_size: int = 64, in_channels: int = 1, seed: int = 42):
         self.n = n
         self.image_size = image_size
+        self.in_channels = in_channels
         self.rng = np.random.default_rng(seed)
 
     def __len__(self):
@@ -24,7 +25,7 @@ class DummyDataset(Dataset):
     def __getitem__(self, idx):
         size = self.image_size
         img = torch.from_numpy(
-            self.rng.random((1, size, size), dtype=np.float32)
+            self.rng.random((self.in_channels, size, size), dtype=np.float32)
         )
         mask = torch.from_numpy(
             (self.rng.random((1, size, size)) > 0.5).astype(np.float32)
@@ -34,13 +35,14 @@ class DummyDataset(Dataset):
 
 def get_dummy_loaders(cfg: dict):
     image_size = cfg.get("image_size", 64)
+    in_channels = cfg.get("in_channels", 1)
     batch_size = cfg.get("batch_size", 4)
     num_workers = cfg.get("num_workers", 0)  # 0 for dummy — avoids fork overhead
     seed = cfg.get("seed", 42)
 
-    train_ds = DummyDataset(n=32, image_size=image_size, seed=seed)
-    val_ds   = DummyDataset(n=8,  image_size=image_size, seed=seed + 1)
-    test_ds  = DummyDataset(n=8,  image_size=image_size, seed=seed + 2)
+    train_ds = DummyDataset(n=32, image_size=image_size, in_channels=in_channels, seed=seed)
+    val_ds   = DummyDataset(n=8,  image_size=image_size, in_channels=in_channels, seed=seed + 1)
+    test_ds  = DummyDataset(n=8,  image_size=image_size, in_channels=in_channels, seed=seed + 2)
 
     train_loader = DataLoader(
         train_ds, batch_size=batch_size, shuffle=True,

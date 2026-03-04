@@ -1,0 +1,24 @@
+# B4-VLM: OCTA500-6M × TransUNet-VLM (ViT-B/16 + CNN decoder + VLM image prior)
+# exp_id: OCTA6M-B4-TransUNet-VLM
+dataset:    "OCTA500-6M"
+model:      "transunet"
+use_vlm:    true
+image_size: 384
+batch_size: 4
+epochs:     1000
+lr:         1.0e-4
+scheduler:  "cosine"
+seed:       42
+amp:        true
+loss:       "bce_dice"
+
+transunet:
+  timm_model:  "vit_base_patch16_384"
+  pretrained:  false
+  decoder_chs: [256, 128, 64, 16]
+
+vlm:
+  mode:          "image"
+  vlm_dim:       512
+  alpha_init:    0.1
+  dummy_dataset: "OCTA500-6M"

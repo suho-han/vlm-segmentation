@@ -1,6 +1,7 @@
 # B3: DRIVE × SegFormer-B2 (PVT-v2-B2 backbone + All-MLP decoder)
 # exp_id: DRIVE-B3-SegFormer
 dataset:    "DRIVE"
+in_channels: 3
 model:      "segformer_b2"
 image_size: 512
 batch_size: 2

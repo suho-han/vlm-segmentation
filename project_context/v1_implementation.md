@@ -34,13 +34,22 @@ CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py
 | DRIVE-V1-SwinUNETR-VLM  | 0.7764 | 0.6349 | 8.96 | 42.10  | 19.80  | 0.7814   |
 | OCTA6M-V1-SwinUNETR-VLM | 0.8456 | 0.7331 | 1.87 | 29.69  | 5.46   | 0.8402   |
 
-**V1 Observations:**
+### V1 Observations:
 - Spatial injection (Image-branch) shows slight Dice/IoU improvement over V0/B0 on both datasets.
 - **DRIVE:** hd95 regressed back to B0 levels (8.96), but β1 error (holes) is at its lowest (19.80).
 - **OCTA:** Achieved lowest hd95 (1.87) among SwinUNETR variants.
 
-### After V1: Next Candidates
+---
 
-1. **Topology loss (V2):** Add `betti_beta0 + betti_beta1` auxiliary loss. Works with V1 architecture.
-2. **Gate LR scheduling:** 10× LR for injection layers vs backbone.
-3. **Backbone expansion:** ViT-based segmenters (TransUNet, SegFormer-B2) for VLM injection comparison study.
+### V2 Implementation: COMPLETE (2026-03-03)
+
+**Objective:** Direct optimization for micro-vessel connectivity and stable injection-layer convergence.
+
+- **Topology-aware Loss:** `SoftclDiceLoss` implemented (soft-skeletonization via differentiable erosion/dilation). Integrated into `TopologyAwareLoss` alongside BCE and Dice.
+- **Optimizer LR Split:** `build_optimizer` implemented to detect VLM-related modules (`gates`, `vlm_proj`, etc.) and apply a higher learning rate (10x base LR) for faster semantic feature adaptation.
+- **Resulting Experiments:** 
+  - `ISIC2018-V1-Topology` (GPU 0)
+  - `OCTA6M-V1-Topology` (GPU 0)
+  - `DRIVE-V1-Topology` (GPU 0)
+  - `MoNuSeg-V1-Topology` (GPU 0)
+

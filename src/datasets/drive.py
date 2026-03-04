@@ -32,10 +32,11 @@ from .transforms import (
     RandomVerticalFlip,
     Resize,
     ToTensor,
+    Normalize,
 )
 
 
-def _build_transforms(split: str, image_size: int):
+def _build_transforms(split: str, image_size: int, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     if split == "train":
         return Compose([
             Resize(image_size),
@@ -44,11 +45,12 @@ def _build_transforms(split: str, image_size: int):
             RandomVerticalFlip(),
             ColorJitter(brightness=0.3, contrast=0.3, saturation=0.0, hue=0.0),
             ToTensor(),
+            Normalize(mean, std),
         ])
     else:
         return Compose([
-            Resize(image_size),
             ToTensor(),
+            Normalize(mean, std),
         ])
 
 
@@ -75,6 +77,8 @@ class DRIVEDataset(Dataset):
         image_ext: str | None = None,  # None → auto-detect
         label_ext: str | None = None,  # None → auto-detect (.gif on official DRIVE)
         transform=None,
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225],
     ):
         self.images_dir = os.path.join(root_dir, split, "images")
         # DRIVE stores labels in 'masks/' subdirectory
@@ -88,7 +92,7 @@ class DRIVEDataset(Dataset):
 
         self.image_ext = image_ext or _detect_ext(self.images_dir)
         self.label_ext = label_ext or _detect_ext(self.labels_dir)
-        self.transform = transform or _build_transforms(split, image_size)
+        self.transform = transform or _build_transforms(split, image_size, mean, std)
 
         self.image_files = natsorted([
             f for f in os.listdir(self.images_dir)
@@ -104,7 +108,7 @@ class DRIVEDataset(Dataset):
         fname = self.image_files[idx]
         stem = os.path.splitext(fname)[0]
 
-        img = Image.open(os.path.join(self.images_dir, fname)).convert("L")
+        img = Image.open(os.path.join(self.images_dir, fname))
 
         lbl_path = os.path.join(self.labels_dir, stem + self.label_ext)
         if not os.path.exists(lbl_path):
@@ -135,10 +139,12 @@ def get_drive_loaders(cfg: dict):
     # Extensions: None → auto-detect per split dir
     image_ext = cfg.get("image_ext", None)
     label_ext = cfg.get("label_ext", None)
+    mean = cfg.get("image_mean", [0.485, 0.456, 0.406])
+    std  = cfg.get("image_std",  [0.229, 0.224, 0.225])
 
-    full_train = DRIVEDataset(str(dataset_root), "train", image_size, image_ext, label_ext)
+    full_train = DRIVEDataset(str(dataset_root), "train", image_size, image_ext, label_ext, mean=mean, std=std)
     test_ds    = DRIVEDataset(str(dataset_root), "test",  image_size, image_ext, label_ext,
-                              transform=_build_transforms("test", image_size))
+                              transform=_build_transforms("test", image_size, mean, std))
 
     # Deterministic 80/20 train/val split (logged in config snapshot)
     n = len(full_train)
@@ -151,7 +157,7 @@ def get_drive_loaders(cfg: dict):
 
     # Separate Dataset for val with val transforms
     val_base = DRIVEDataset(str(dataset_root), "train", image_size, image_ext, label_ext,
-                            transform=_build_transforms("val", image_size))
+                            transform=_build_transforms("val", image_size, mean, std))
     train_ds = Subset(full_train, train_indices)
     val_ds   = Subset(val_base,   val_indices)
 

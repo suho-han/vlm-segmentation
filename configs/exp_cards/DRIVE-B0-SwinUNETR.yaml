@@ -1,6 +1,7 @@
 # Baseline B0: DRIVE × SwinUNETR
 # exp_id: DRIVE-B0-SwinUNETR
 dataset:    "DRIVE"
+in_channels: 3
 model:      "swinunetr"
 image_size: 512
 batch_size: 2

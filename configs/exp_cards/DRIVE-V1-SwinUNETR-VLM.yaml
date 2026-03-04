@@ -1,6 +1,7 @@
 # V1: DRIVE × SwinUNETR + VLM image spatial injection (BiomedCLIP ViT-B/16)
 # exp_id: DRIVE-V1-SwinUNETR-VLM
 dataset:    "DRIVE"
+in_channels: 3
 model:      "swinunetr_vlm_v1"
 image_size: 512  # must be divisible by 32 for SwinUNETR
 batch_size: 2

@@ -1,293 +1,190 @@
-# CLAUDE.md — Code Agent Instructions (uv + Pure PyTorch)
+# Claude Code Prompt (C) — VLM Segmentation
 
-## Project Context
+You are Claude Code working inside the repo:
+`/data1/suhohan/vlm-segmentation`
 
-**Canonical Source of Truth:** Before starting any work, you MUST read and update `project_context/` (split files).
-Index: `PROJECT_CONTEXT.md` → links to all sub-files under `project_context/`.
+## Non-negotiable constraints
 
-- Task: 2D vessel segmentation (OCTA500-6M, DRIVE)
-- Framework: **Pure PyTorch only** (NO PyTorch Lightning, NO Hydra)
-- Package manager: **uv exclusively** (no pip/conda)
-- Models: SwinUNETR · UNet++ · NNUNet2D · SwinUNETR+VLM V0 (text gate) · SwinUNETR+VLM V1 (image spatial)
-- Abstract base: ViTSegBase (`vit_template.py`) — for future ViT backbone additions
-- Metrics: Dice, IoU, hd95, Betti β0/β1
-- Outputs: reproducible via seed + config snapshot + git hash + metrics.json
+- Pure PyTorch only (NO PyTorch Lightning, NO Hydra).
+- Configs are plain YAML under `configs/exp_cards/` + argparse overrides.
+- Metrics must always include: `Dice`, `IoU`, `hd95`, `betti_beta0`, `betti_beta1` and be saved to `runs/{dataset}/{model}/{exp_id}/metrics.json`.
+- **GPU policy:** use GPU 0,1  only unless explicitly instructed otherwise.
+  - Always run with: `CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run ...`
+
+## Context snapshot (what exists)
+
+- Baselines already implemented: SwinUNETR (B0), UNet++ (B1), nnU-Net 2D (B2), SegFormer-like (B3), TransUNet (B4).
+- VLM feature prior exists for SwinUNETR:
+  - V0 = text-only gated channel scaling.
+  - V1 = image spatial injection from BiomedCLIP image encoder (frozen).
 
 ---
 
-## Environment
+## Gemini CLI — Project Oversight & Review
+
+When a task involves cross-file impact, architectural decisions, or large-scale
+consistency checks, delegate project-wide review to **Gemini CLI** before finalizing
+any implementation. Gemini acts as the **project lead and reviewer**; Claude Code
+acts as the **implementer**.
+
+### Role Division
+
+| Role | Tool |
+|------|------|
+| File edits, running commands, tests | **Claude Code** |
+| Architecture review, cross-file consistency, large-context reasoning | **Gemini CLI** |
+
+### When to invoke Gemini CLI
+
+Invoke Gemini CLI in the following situations:
+
+- Before starting a new task (C1–C4): scan the full repo for relevant existing code
+- After implementing a task: review for consistency with existing patterns
+- When a bug is non-obvious: hand the full src tree to Gemini for diagnosis
+- Before any PR/commit: full project-wide sanity check
+
+### Standard review commands for this repo
 
 ```bash
-# Always unset the shell-resident JiT venv AND set GPU before running
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py ...
-env -u VIRTUAL_ENV uv run pytest -q   # tests don't need GPU selection
+# Full project scan before starting a task
+gemini -p "@src/ @configs/ @tests/ Review the overall architecture and summarize relevant existing patterns before I implement a new feature"
 
-# Install packages into project venv
-uv pip install --python .venv/bin/python <package>
+# Post-implementation review (e.g., after C1)
+gemini -p "@src/models/ @tests/ I just added segformer_vlm_v1.py and transunet_vlm_v1.py. Review for consistency with existing VLM injection patterns in swinunetr_vlm_v1.py and flag any issues"
+
+# Cross-file consistency check (naming, config wiring, factory registration)
+gemini -p "@src/ @configs/exp_cards/ @train.py @eval.py Check that all new models are consistently registered in the model factory and have matching exp card configs"
+
+# Topology loss review (C3)
+gemini -p "@src/ @losses/ I implemented topology_loss.py. Review its integration with the training loop and verify Betti metric logging is consistent across all model variants"
+
+# Debug convergence issue (C2)
+gemini -p "@src/models/transunet.py @src/models/transunet_vlm_v1.py @train.py The TransUNet DRIVE 512px run diverges at start. Diagnose the positional embedding mismatch and suggest the best fix"
+
+# Save review output for Claude Code to act on
+gemini -p "@. Full project review: check for bugs, inconsistencies, and missing wiring" > gemini_review.md
 ```
 
-- venv: `.venv/` (Python 3.11)
-- Installed: torch 2.10.0+cu128, monai 1.5.2, einops, open_clip_torch 3.3.0, transformers
-- **GPU policy: use GPU 0 or 1** (`CUDA_VISIBLE_DEVICES=0`) for all training/eval commands
-- SwinUNETR smoke tests must use exp_card configs (not `--image_size`) because
-  `defaults.yaml swinunetr.img_size=400` overrides the CLI flag
+### Integration pattern (per task)
+
+1. **Before implementation** — run a Gemini scan to understand existing patterns
+2. **Implement** using Claude Code tools
+3. **Post-implementation review** — run Gemini on touched files + related context
+4. **Apply feedback** — Claude Code patches issues raised by Gemini
+5. **Final check** — re-run Gemini if changes were non-trivial
 
 ---
 
-## Project Structure (current)
+## Your mission (do these in order)
 
-```
-vlm-segmentation/
-├── configs/
-│   ├── defaults.yaml
-│   └── exp_cards/
-│       ├── OCTA6M-B0-SwinUNETR.yaml      # baseline
-│       ├── DRIVE-B0-SwinUNETR.yaml
-│       ├── OCTA6M-B1-UNetPP.yaml         # baseline
-│       ├── DRIVE-B1-UNetPP.yaml
-│       ├── OCTA6M-B2-nnUNet.yaml         # baseline (Phase A)
-│       ├── DRIVE-B2-nnUNet.yaml
-│       ├── OCTA6M-V0-SwinUNETR-VLM.yaml  # text-gate
-│       ├── DRIVE-V0-SwinUNETR-VLM.yaml
-│       ├── OCTA6M-V1-SwinUNETR-VLM.yaml  # image spatial injection
-│       └── DRIVE-V1-SwinUNETR-VLM.yaml
-├── src/
-│   ├── datasets/   octa500.py, drive.py, dummy.py, discovery.py, transforms.py
-│   ├── models/
-│   │   ├── swinunetr.py         SwinUNETR2D         — baseline
-│   │   ├── unetpp.py            UNetPlusPlus        — baseline
-│   │   ├── nnunet_2d.py         NNUNet2D            — baseline (B2)
-│   │   ├── vit_template.py      ViTSegBase          — abstract base for ViT additions
-│   │   ├── vlm_prior.py         VLMPrior            — frozen BiomedCLIP encoder
-│   │   ├── swinunetr_vlm.py     SwinUNETR2DVLM      — V0 text gate
-│   │   └── swinunetr_vlm_v1.py  SwinUNETR2DVLMV1    — V1 image spatial
-│   ├── losses/     dice.py, bce.py
-│   ├── metrics/    dice_iou.py, hd95.py, topology.py
-│   └── utils/      exp.py, seed.py, io.py
-├── tests/
-│   ├── test_metrics.py
-│   ├── test_smoke_train.py
-│   ├── test_vlm_prior.py          (V0 text tests)
-│   ├── test_vlm_image_prior.py    (V1 image tests)
-│   └── test_nnunet.py             (B2 nnU-Net tests — 71 total passing)
-├── project_context/               (split context files — canonical source of truth)
-├── train.py, eval.py
-└── runs/   (gitignored)
-```
+### Task C1 — Implement V1 VLM injection for SegFormer and TransUNet
 
----
+**Goal:** Provide apples-to-apples comparison of VLM injection across backbones.
 
-## Run Output Contract (strict)
+1) Add model files:
 
-`runs/{dataset}/{model}/{exp_id}/`
+- `src/models/segformer_vlm_v1.py`
+- `src/models/transunet_vlm_v1.py`
 
-- `config.yaml`      — merged config snapshot (re-saved after VLM init to include backbone name)
-- `metrics.json`     — `{aggregate: {Dice,IoU,hd95,betti_beta0,betti_beta1,...}, per_sample: [...]}`
-- `train_history.json`
-- `ckpt/best.pt`, `ckpt/last.pt`
-- `pred_vis/`        — ≥20 sample visualisations
-- `git_commit.txt`
+1) Reuse the existing VLM feature extractor:
 
-`exp_id`: CLI arg or auto `YYYYMMDD_HHMMSS_<shorthash>`.
+- Use `src/models/vlm_prior.py:get_image_features(x) -> (B, 512, 14, 14)`.
+
+1) Injection design (keep it simple, robust):
+
+- For each backbone, inject VLM features into decoder stages via:
+  - bilinear upsample VLM grid to stage spatial size
+  - `Conv2d(512 -> C, 1x1)` projection (zero-init)
+  - `feat = feat + alpha * proj(vlm_feat)` where `alpha` is learnable per stage (init 0.1)
+
+1) Add exp cards:
+
+- `configs/exp_cards/OCTA6M-V1-SegFormer-VLM.yaml`
+- `configs/exp_cards/DRIVE-V1-SegFormer-VLM.yaml`
+- `configs/exp_cards/OCTA6M-V1-TransUNet-VLM.yaml`
+- `configs/exp_cards/DRIVE-V1-TransUNet-VLM.yaml`
+
+1) Wire into `train.py` / `eval.py` model factory.
+
+2) Add unit tests:
+
+- shape tests, forward pass, deterministic seed smoke test
+- ensure VLM path is frozen (no grad) unless explicitly enabled.
+
+**Done criteria:**
+
+- `env -u VIRTUAL_ENV uv run pytest -q` passes.
+- One-epoch smoke training on dummy dataset passes for each new model.
 
 ---
 
-## CLI Contract
+### Task C2 — Fix TransUNet DRIVE(512px) convergence issue (pos embedding mismatch)
 
-### Training
+**Problem:** prior TransUNet run on DRIVE with 512px input failed due to ViT positional embedding/input grid mismatch.
+
+Implement one of these fixes (choose best engineering tradeoff):
+
+- Interpolate pos embeddings to match token grid at runtime.
+- Or enforce input resolution that matches patch/grid assumptions via resizing in dataset transforms for TransUNet.
+
+**Requirement:** The fix must be explicit in code + documented in the TransUNet config.
+
+**Done criteria:**
+
+- TransUNet baseline (A0/B4) and TransUNet-V1 runs no longer diverge at start; validation loss decreases.
+
+---
+
+### Task C3 — Add V2 (Topology-aware auxiliary loss) for V1 models
+
+**Goal:** Improve structure metrics, not only Dice.
+
+1) Implement `losses/topology_loss.py`:
+
+- Use the existing Betti proxy signals (β0/β1) to build a differentiable surrogate.
+- If full differentiability is hard, implement a proxy that correlates with connectivity (e.g., soft skeleton loss, clDice-style centerline loss) and keep Betti as evaluation.
+
+1) Add exp cards for SwinUNETR-V1-V2 and at least one additional backbone:
+
+- `OCTA6M-V2-SwinUNETR-VLM.yaml`, `DRIVE-V2-SwinUNETR-VLM.yaml`
+
+1) Log structural metrics each epoch.
+
+**Done criteria:**
+
+- At least one dataset shows improvement in **either** hd95 or Betti errors vs the corresponding V1 baseline.
+
+---
+
+### Task C4 — Learning-rate split for injection layers
+
+Implement optimizer param groups:
+
+- backbone lr = 1e-4
+- injection/project/gate layers lr = 1e-3 (10×)
+
+Add to configs via a simple flag (no Hydra).
+
+---
+
+## Commands (examples)
 
 ```bash
-# Baseline
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/defaults.yaml \
-    --dataset OCTA500-6M --model swinunetr \
-    --exp_id OCTA6M-B0-SwinUNETR --outdir runs
+# Tests
+CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run pytest -q
 
-# B2 nnU-Net
+# Train example
 CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/OCTA6M-B2-nnUNet.yaml \
-    --exp_id OCTA6M-B2-nnUNet --data_root ./data --outdir runs
-
-# VLM V0 (text gate) — MUST use exp_card so img_size is set correctly
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/OCTA6M-V0-SwinUNETR-VLM.yaml \
-    --exp_id OCTA6M-V0-SwinUNETR-VLM --data_root ./data --outdir runs
-
-# VLM V1 (image spatial)
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml \
-    --exp_id OCTA6M-V1-SwinUNETR-VLM --data_root ./data --outdir runs
-
-# Smoke test (dummy data, no real dataset needed)
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml \
-    --dummy --epochs 2 --exp_id smoke_v1 --outdir runs
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/OCTA6M-B2-nnUNet.yaml \
-    --dummy --epochs 2 --exp_id smoke_nnunet --outdir runs
+  --config configs/exp_cards/OCTA6M-V1-SegFormer-VLM.yaml \
+  --exp_id OCTA6M-V1-SegFormer-VLM \
+  --epochs 1000 --patience 50 --data_root ./data --outdir runs
 ```
 
-### Evaluation
+## Output contract
 
-```bash
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python eval.py \
-    --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml \
-    --exp_id OCTA6M-V1-SwinUNETR-VLM \
-    --ckpt runs/OCTA500-6M/swinunetr_vlm_v1/OCTA6M-V1-SwinUNETR-VLM/ckpt/best.pt \
-    --data_root ./data --outdir runs
+For every change, provide:
 
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python eval.py \
-    --config configs/exp_cards/OCTA6M-B2-nnUNet.yaml \
-    --exp_id OCTA6M-B2-nnUNet \
-    --ckpt runs/OCTA500-6M/nnunet_2d/OCTA6M-B2-nnUNet/ckpt/best.pt \
-    --data_root ./data --outdir runs
-```
-
-### VLM-specific flags (both train.py and eval.py)
-
-| Flag | Values | Default | Effect |
-|------|--------|---------|--------|
-| `--vlm_mode` | `text\|image\|both` | `image` for v1, `text` for v0 | Injection mode |
-| `--vlm_alpha_init` | float | `0.1` | Initial injection scale |
-
----
-
-## Implemented Models
-
-### `build_model(cfg)` dispatch table
-
-| cfg `model` key | Class | Forward signature |
-|----------------|-------|-------------------|
-| `swinunetr` | `SwinUNETR2D` | `model(x)` |
-| `unetpp` / `unet++` | `UNetPlusPlus` | `model(x)` |
-| `nnunet_2d` / `nnunet` | `NNUNet2D` | `model(x, text_embed=None, image_vlm_feat=None)` |
-| `swinunetr_vlm` | `SwinUNETR2DVLM` | `model(x, text_embed)` |
-| `swinunetr_vlm_v1` | `SwinUNETR2DVLMV1` | `model(x, text_embed=None, image_vlm_feat=None)` |
-
-`_model_forward(model, imgs, cfg, text_embed, image_vlm_feat)` in `train.py`/`eval.py`
-handles dispatch automatically based on `cfg["model"]`.
-
-### `NNUNet2D` config keys (`cfg["nnunet"]`)
-
-| Key | Default | Notes |
-|-----|---------|-------|
-| `base_channels` | `32` | Channel width at shallowest level |
-| `n_pool` | `5` | Downsampling stages — input must be divisible by `2^n_pool` |
-| `max_channels` | `320` | Channel cap |
-| `deep_supervision` | `false` | Return list of logits when true |
-
-### `ViTSegBase` (`vit_template.py`) — abstract base for new ViT additions
-
-Subclass and implement:
-- `_build_encoder()` — build and register backbone
-- `_encode(x)` → `list[Tensor]` coarsest-first multi-scale features
-- `_decode(features)` → `(B, out_ch, H, W)` logit map
-
-VLM injection hooks (override to activate):
-- `_apply_vlm(feat, level, text_embed, image_vlm_feat)` → `feat` (identity default)
-- `_project_vlm(image_vlm_feat, h, w, level)` — bilinear upsample + 1×1 Conv projection
-- `_register_vlm_projs(feat_dims)` — zero-init Conv2d projections per decoder level
-
----
-
-## VLM Architecture Reference
-
-### VLMPrior (`src/models/vlm_prior.py`)
-
-Loads frozen BiomedCLIP (fallback: CLIP ViT-B/16) and exposes:
-
-```python
-prior = VLMPrior(dataset="OCTA500-6M", device=device)
-text_embed = prior.get_text_embed()        # (1, 512) — cached, L2-normalised
-img_feat   = prior.get_image_features(x)  # (B, 512, 14, 14) — per-batch, no grad
-```
-
-**BiomedCLIP internal structure** (open_clip 3.3.0):
-- `model.visual` is a `TimmModel` (NOT `VisionTransformer`)
-- `model.visual.trunk` = timm `VisionTransformer`
-- `model.visual.head` = `Sequential(Dropout, Linear(768→512))`
-- `trunk.forward_features(x)` → `(B, 197, 768)` — all tokens incl. CLS at `[:,0]`
-- Patch tokens: `[:, 1:]` → `(B, 196, 768)` → apply `head` → `(B, 196, 512)` → reshape `(B, 512, 14, 14)`
-
-The clip model is moved to `device` on load (GPU needed for efficient per-batch inference).
-
-### V0 — Text-gated channel modulation (`swinunetr_vlm.py`)
-
-```
-gate = tanh( Linear(512 → C)(text_embed) )   # zero-init → identity at start
-out  = decoder_feat * (1 + gate)             # channel-wise residual scale
-```
-
-Applied at 4 decoder stages: C = [384, 192, 96, 48] (coarse→fine).
-`text_embed` is constant per run → gate degenerates to static channel mask.
-
-### V1 — Per-image spatial injection (`swinunetr_vlm_v1.py`)
-
-```
-vlm_up = bilinear_upsample(image_vlm_feat, size=decoder_feat.shape[2:])
-proj   = Conv2d(512 → C, 1×1)(vlm_up)     # zero-init → identity at start
-out    = decoder_feat + alpha * proj       # alpha: learnable scalar (init=0.1)
-```
-
-Applied at 4 decoder stages. `image_vlm_feat` is `(B, 512, 14, 14)` computed
-per batch from the frozen BiomedCLIP image encoder.
-
-`vlm_mode` controls which branches are active:
-- `"image"` (default for V1) — only spatial injection
-- `"text"` — only text gate (V0 behaviour)
-- `"both"` — both simultaneously
-
----
-
-## Metrics Contract (LOCKED)
-
-Required keys in `metrics.json["aggregate"]`:
-`Dice`, `IoU`, `hd95`, `betti_beta0`, `betti_beta1`
-
-- `hd95`: `inf` when either pred or gt is empty
-- `betti_beta0/1`: `|pred_count − gt_count|` (skimage proxy)
-
----
-
-## Coding Constraints
-
-- Pure PyTorch. No Lightning, Hydra, or new heavy dependencies.
-- All paths explicit; no hidden side effects.
-- Short docstrings for non-trivial logic.
-- Do not break existing tests (`uv run pytest -q` must stay green — currently 71 passing).
-- New model variants: add to `src/models/__init__.py` dispatch table,
-  add exp_card YAML, add pytest test file.
-- New ViT backbones: subclass `ViTSegBase` from `vit_template.py`.
-
----
-
-## Key Commands
-
-```bash
-# Run all tests
-env -u VIRTUAL_ENV uv run pytest -q
-
-# Smoke tests
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml \
-    --dummy --epochs 2 --exp_id smoke_v1 --outdir runs
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/OCTA6M-B2-nnUNet.yaml \
-    --dummy --epochs 2 --exp_id smoke_nnunet --outdir runs
-
-# B2 nnU-Net training
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/OCTA6M-B2-nnUNet.yaml \
-    --exp_id OCTA6M-B2-nnUNet --data_root ./data --outdir runs
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/DRIVE-B2-nnUNet.yaml \
-    --exp_id DRIVE-B2-nnUNet --data_root ./data --outdir runs
-
-# V1 training
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/OCTA6M-V1-SwinUNETR-VLM.yaml \
-    --exp_id OCTA6M-V1-SwinUNETR-VLM --data_root ./data --outdir runs
-CUDA_VISIBLE_DEVICES=0 env -u VIRTUAL_ENV uv run python train.py \
-    --config configs/exp_cards/DRIVE-V1-SwinUNETR-VLM.yaml \
-    --exp_id DRIVE-V1-SwinUNETR-VLM --data_root ./data --outdir runs
-```
+- files touched
+- how to run (exact commands)
+- expected outputs under `runs/`
+- brief notes on risks/failure modes

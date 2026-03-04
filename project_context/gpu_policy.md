@@ -2,13 +2,13 @@
 
 ### Default GPU Assignment
 
-Unless explicitly specified otherwise, **use GPU 0 or 1 (available ones) instead of GPU 2**.
+Unless explicitly specified otherwise, **use GPU 0 (available one)**.
 
 ### Execution Rule
 
 All training / evaluation commands must set:
 
-CUDA_VISIBLE_DEVICES=0  # or 1
+CUDA_VISIBLE_DEVICES=0
 
 Example:
 

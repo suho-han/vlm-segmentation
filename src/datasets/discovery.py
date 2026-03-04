@@ -16,6 +16,8 @@ _CANDIDATES = {
                     "octa500_6m", "OCTA500"],
     "OCTA500-3M":  ["OCTA500_3M", "OCTA500-3M", "OCTA5003M", "octa500_3m"],
     "DRIVE":       ["DRIVE", "drive", "Drive"],
+    "MoNuSeg":     ["MoNuSeg", "monuseg", "MONUSEG", "MoNuSeg2018"],
+    "ISIC2018":    ["ISIC2018", "ISIC_2018", "isic2018", "ISIC-2018"],
 }
 
 # Expected sub-structure to validate a candidate (any of these must exist)
@@ -24,6 +26,10 @@ _EXPECTED_SUBDIRS = {
     "OCTA500-3M": [["train", "images"], ["train", "labels"]],
     "DRIVE":      [["train", "images"], ["train", "masks"],
                    ["test",  "images"], ["test",  "masks"]],
+    "MoNuSeg":    [["train", "images"], ["train", "labels"],
+                   ["test",  "images"], ["test",  "labels"]],
+    "ISIC2018":   [["train", "images"], ["train", "labels"],
+                   ["test",  "images"]],
 }
 
 # Image/mask extensions to scan
